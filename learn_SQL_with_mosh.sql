@@ -1,4 +1,5 @@
 
+
 select
      last_name, first_name, points, points * 1.1 as 'increased price'
 from customers;
@@ -108,6 +109,7 @@ where last_name regexp '^field|mac|rose';
 select *
 from customers
 where  last_name regexp  'field$|mac|rose';
+
 select *
 from customers
 where last_name regexp  '[gim]e'; -- explanation is listed below :)
@@ -152,7 +154,7 @@ select *
 from orders
 where shipper_id is null;
 
-select * from sql_store.orders; -- for seeing orders table we use this statement
+select * from sql_store.orders; -- for seeing orders in sql_store table we use this statement
 
 -- sort customers table by their name
 select *
@@ -167,7 +169,7 @@ select  *
 from  customers
 order by  state, first_name; -- first ordered by state and then where the states are similar they ordered by name
 
--- in mysql we can order any columns whether this column is in select class or not for example:
+-- in mysql we can order any columns whether this column is in select clause or not for example:
 select first_name, last_name
 from customers
 order by birth_date;
@@ -189,7 +191,7 @@ select * from order_items;
 select *,  unit_price*quantity as 'total price'
 from order_items
 where order_id = 2
-order by `total price`  desc;
+order by 'total price'  desc;
 
 -- working with limit
 select *
@@ -278,6 +280,336 @@ join clients c on c.client_id = p.client_id;
 select p.date, p.invoice_id, p.amount, c.name, pm.name from payments p
 join payment_methods pm on p.payment_method = pm.payment_method_id
 join clients c on c.client_id = p.client_id;
+
+-- compound join conditions used especially for composite keys; composite keys are those that two columns are responsible for showing uniqueness--------
+use sql_store;
+select * from order_items oi
+join order_item_notes oin on oi.order_id = oin.order_Id
+and oi.product_id = oin.product_id;
+
+-- implicit join syntax--------------------------------------
+select *
+from customers c
+join orders o on c.customer_id = o.customer_id; -- explicit join syntax
+
+-- if we want to write implicit syntax instead of above explicit syntax we can rewrite it as  follows:
+select *
+from customers c, orders o
+where o.customer_id = c.customer_id;
+-- it is important to know that it is better to use explicit syntax because when we forget "where" we can
+-- have thousands of cells that are connected incorrectly
+
+-- outer join--------------------------------------------------------------------------------
+-- an example of normal inner join
+select
+    c.customer_id,
+    c.first_name,
+    o.order_id
+from customers c
+join orders o on c.customer_id = o.customer_id
+order by c.customer_id;
+
+-- we only see the customers that have order in our system, we want to see the customers weather
+-- they have order or not
+select
+    c.customer_id,
+    c.first_name,
+    o.order_id
+from customers c
+left join orders o on c.customer_id = o.customer_id -- all the records from left table
+-- (customers) either the condition is true or not are listed
+order by c.customer_id;
+
+-- code bellow shows that all the records in the right side will be showed when the condition is true
+select
+    c.customer_id,
+    c.first_name,
+    o.order_id
+from customers c
+right join orders o on c.customer_id = o.customer_id -- all the records from left table
+-- (customers) either the condition is true or not are listed
+order by c.customer_id;
+
+-- exercise ---
+select p.product_id,
+       p.name,
+       oi.quantity
+from products p
+    left join order_items oi on p.product_id = oi.product_id;
+
+-- outer joins between multiple tables---------------------------------------
+select
+    c.customer_id,
+    c.first_name,
+    o.order_id,
+    sh.name as shipper
+from customers c
+left join orders o on c.customer_id = o.customer_id -- all the records from left table
+left join shippers sh on sh.shipper_id = o.shipper_id
+-- (customers) either the condition is true or not are listed
+order by c.customer_id;
+
+-- exercise
+select o.order_date,
+       o.order_id,
+       c.first_name,
+       sh.name as shipper,
+       os.name as status
+from customers c
+join orders o on o.customer_id = c.customer_id
+left join shippers sh on o.shipper_id = sh.shipper_id
+join order_statuses os
+    on o.status = os.order_status_id;
+
+-- self outer join--------------------------------------------
+use sql_hr;
+select * from employees;
+select e.employee_id, e.first_name, m.first_name as manager
+from employees e
+left join employees m on e.reports_to = m.employee_id;
+
+-- the using clause-------------------------------------
+-- if we have two columns with the same name we use using instead of join on clause
+-- and also when we have composite primary key instead of primary keys we can use it
+-- two columns with same name in two different tables
+use sql_store;
+select o.order_id, c.first_name, sh.name as shipper
+from customers c
+join orders o on c.customer_id = o.customer_id
+left join shippers sh on o.shipper_id = sh.shipper_id;
+-- this query is as same as above
+select o.order_id, c.first_name, sh.name as shipper
+from customers c
+join orders o using(customer_id)
+left join shippers sh using(shipper_id);
+
+-- using "using clause" in composite primary key example
+select *
+from order_items oi
+join order_item_notes oin on oi.order_id = oin.order_Id
+and oi.product_id = oin.product_id;
+-- instead we can use
+select *
+from order_items oi
+join order_item_notes oin using(product_id, order_id);
+
+-- exercise
+-- using payment table we create a table with data/client/amount/name on columns
+use sql_invoicing;
+select p.date, cl.name as client, p.amount, pm.name
+from clients as cl
+join payments p using(client_id)
+join payment_methods pm on p.payment_method = pm.payment_method_id;
+
+-- natural joins------------------ let system join common columns by itself--------------------------
+use sql_store;
+select c.first_name, o.order_id
+from customers c
+natural join orders o;
+
+-- cross join-----------------------------------------------------------------------
+-- joining every record from first table with every record with second table-- this is an explicit syntax for cross join
+select c.first_name as customer, p.name as product
+from customers c
+cross join products p
+order by first_name;
+
+-- implicit syntax for cross join
+select c.first_name as customer, p.name as product
+from customers c, products p
+order by  first_name;
+
+-- unions --------------------- we use for combining rows--------------------
+ select o.order_id, o.order_date,  'Active' as status
+from orders o where order_date >= '2019-01-30'
+union
+select o.order_id, o.order_date,  'Archived' as status
+from orders o where order_date < '2019-01-30';
+
+-- exercise
+select customer_id, first_name, points, 'Bronze' as type
+from customers
+where points<2000
+union
+select customer_id, first_name, points, 'Silver' as type
+from customers
+where 2000<points<3000
+union
+select customer_id, first_name, points, 'Gold' as type
+from customers
+where points>2000
+order by  first_name;
+-- inserting a single row------------------------------------------------------------
+-- first way
+insert into  customers
+values(default, 'John', 'Smith', '1990-01-01', null, 'address', 'City', 'CA', default);
+-- second way
+insert into  customers(first_name, last_name, birth_date, address, city, state)
+values('John', 'Smith', '1990-01-01','address', 'City', 'CA');
+
+-- inserting multiple rows---------------------------------------------------------------------
+insert into shippers(name)
+values ('shipper1'),
+       ('shipper2'),
+       ('shipper3');
+-- exercise ---- insert 3 rows in product table
+insert into  products
+values(default, 'Water', 10, 1), (default, 'Milk', 30, 2.5), (default, 'rice', 40, 55);
+
+-- inserting hierarchical rows  ---------------------------------------------------------------
+-- it is used when we have parent and children relation between tables for example we add a new row in a parent table
+-- then we need to update children row as well
+insert into  orders(customer_id, order_date, status)
+values (1, '2019-01-01', 1);
+
+insert into order_items
+values (last_insert_id(), 1,1,2.95),
+       (last_insert_id(), 2, 1, 3.95);
+-- creating a copy of a table ----------------------------------------------------------
+create table  archived_orders as
+    select * from orders;
+
+insert into archived_orders
+-- sub-query in an insert statement
+select * from orders
+where order_date < '2019-01-01';
+-- temp
+-- alter  view vw_HighLoyaltyChicagoCustomers as
+-- select c.*, o.order_date from customers c
+-- join orders o on  c.customer_id = o.customer_id
+-- where c.city = 'Chicago' and points > 3000;
+
+-- select * from vw_HighLoyaltyChicagoCustomers
+-- exercise -----------------
+use sql_invoicing;
+create  table  archived_invoices as
+select c.client_id, c.name as client_name, inv.payment_total, inv.payment_date
+from invoices as inv
+join clients c using(client_id)
+where payment_date is not NULL;
+
+-- updating a single row----------------------------------------------------------------
+update invoices
+set payment_total = 10, payment_date = '2019-03-01'
+where invoice_id = 1;
+
+update invoices
+set payment_total = 0, payment_date = null
+where invoice_id = 1;
+
+update invoices
+set payment_total = invoice_total * 0.5, payment_date = due_date
+where invoice_id = 3;
+
+-- updating multiple rows -------------------------------------------------
+update invoices
+set payment_total = invoice_total * 0.5, payment_date = due_date
+where client_id = 3;
+
+update invoices
+set payment_total = invoice_total * 0.5, payment_date = due_date
+where client_id in (3,4);
+
+-- exercise ---------------------------------------
+-- write a SQL statement to
+-- give any customers born before 1990
+-- 50 extra points
+
+use sql_store;
+update customers
+set points = points+50
+where birth_date < '1990-01-01';
+
+-- using sub-queries in an update statement --------------------------------------------------------
+use sql_invoicing;
+update invoices
+set
+    payment_date = invoice_total * 0.5,
+    payment_date = due_date
+where client_id = 3; -- we wanna chane this using select as a sub-query ------>
+
+-- start
+-- consider we have only the name of clients in an application therefore we should find client id that are related to the client name and then update it
+select client_id
+from clients
+where name = 'Myworks'; -- we can use this select statement as a sub query from update ------->
+
+
+update invoices
+set
+    payment_date = invoice_total * 0.5,
+    payment_date = due_date
+where client_id =
+            (select client_id
+            from clients
+            where name = 'Myworks'); -- when we have more than one client ----------> for example ------->
+
+update invoices
+set
+    payment_date = invoice_total * 0.5,
+    payment_date = due_date
+where client_id =
+            (select client_id
+            from clients
+            where state in ('CA', 'NY')); -- because this sub-query returns multiple records, we can delete "=" -------->
+
+update invoices
+set
+    payment_date = invoice_total * 0.5,
+    payment_date = due_date
+where client_id in
+            (select client_id
+            from clients
+            where state in ('CA', 'NY'));
+
+-- exercise --
+-- update comments of customers as a gold customer where they points are greater than 3000
+use sql_store;
+
+update orders
+set comments = 'Gold customer'
+where customer_id in
+      (select customer_id
+      from customers
+      where points > 3000)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
