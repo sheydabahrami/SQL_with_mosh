@@ -573,6 +573,198 @@ where customer_id in
       from customers
       where points > 3000)
 
+-- deleting data in SQL--------------------------
+use sql_invoicing;
+delete from invoices
+where client_id = (
+    select client_id
+    from clients
+    where name = 'Myworks'
+);
+
+-- working with  functions  (aggregate functions) ------------------------------------------
+use  sql_invoicing;
+select max(invoice_total)
+from invoices;
+-- we can expand it as:
+select max(invoice_total) as highest,
+       min(invoice_total) as lowest,
+       avg(invoice_total) as average,
+       sum(invoice_total) as total,
+       count(invoice_total) 'as number of invoices', -- returns non-null values
+       count(payment_date) as count_of_payments,
+       count(*) as total_records
+from invoices;
+-- we can use them for date
+select max(payment_date) as highest
+from invoices;
+
+-- we can have expressions in parantheses
+select sum(invoice_total * 1.1) as wheighted
+from invoices;
+-- we can have where clauses too
+select min(invoice_total)
+from invoices
+where invoice_date> '2017-01-01';
+
+select  count(client_id) -- does not care about duplication
+from invoices;
+-- for considering unique values:
+select count(distinct client_id)
+from invoices;
+
+-- exercise---
+
+select 'first half of 2019' as date_range,
+       sum(invoice_total) as total_sales,
+       sum(payment_total) as total_payments,
+       sum(invoice_total)-sum(payment_total) as what_we_expect
+from invoices where invoice_date <= '2019-06-30'
+
+union
+
+select 'second half of 2019' as date_range,
+       sum(invoice_total) as total_sales,
+       sum(payment_total) as total_payments,
+       sum(invoice_total-payment_total) as what_we_expect
+from invoices where invoice_date > '2019-06-30'
+
+union
+
+select 'Total' as date_range,
+       sum(invoice_total) as total_sales,
+       sum(payment_total) as total_payments,
+       sum(invoice_total-payment_total) as what_we_expect
+from invoices;
+
+-- group by functions---------------------------------------
+
+select sum(invoice_total)
+from invoices
+group by client_id;
+
+select client_id,
+       sum(invoice_total) as total_sales
+from invoices
+where invoice_date > '2019-07-01' -- where clause is before than group by always
+group by client_id;
+
+select state, city, sum(invoice_total)
+from invoices  inv
+join clients c using(client_id)
+group by state, city;
+
+-- exercise--
+select date, name, sum(amount) as total_payments
+from payment_methods pm
+join payments p on pm.payment_method_id = p.payment_method
+group by  date, payment_method
+order by date asc ;
+
+-- having clause----------------- we use "having clause" for filtering data after our rows are grouped, but we use "where clause" before our rows are grouped
+-- it is like where clause but with two differences: first: it is used after creating a group, second: it knows only the columns that we called in
+-- select clause
+
+select client_id, sum(invoice_total) as total_payments
+from invoices
+-- where total_payments > 300 -- that is wrong, because where cannot detect new column
+group by client_id
+having total_payments > 500;
+
+select client_id, sum(invoice_total) as total_payments,
+       count(*) as number_of_invoices
+from invoices
+group by client_id
+having total_payments > 500 and number_of_invoices > 5;
+
+-- exercise--
+-- get the customers
+-- located in virginia
+-- who have spent more than 100$
+
+select  customer_id, first_name,last_name,state, sum(invoice_total) as total from sql_store.customers c
+join sql_invoicing.invoices si on c.customer_id = si.client_id
+where state = 'VA'
+group by customer_id
+having total>100;
+
+-- roll up function ------------------ it is only available in mysql-------------------------------------------------------------
+-- we use it for summarizing
+use sql_invoicing;
+select  client_id, sum(invoice_total) as total
+from invoices
+group by client_id with rollup;
+
+
+select  state,
+        city,
+        sum(invoice_total) as total
+from invoices i
+join clients c using(client_id)
+group by state, city with rollup;
+
+select name as payment_method, sum(amount) as total from payments p
+join payment_methods pm on p.payment_method = pm.payment_method_id
+group by payment_method with rollup ;
+
+-- writing complex queries----------------------------------------------------------
+-- find products that are more expensive than Lettuce
+use sql_store;
+select * from products
+where unit_price > (
+    select unit_price from products
+    where  product_id = 3
+);
+
+-- we can write sub-queries in the select clause and in the from clause too
+-- exercise --
+-- in sql_store find the employees whose earn more than average
+use sql_hr;
+select * from employees
+where salary > (
+          select avg(salary)
+          from employees
+      );
+use sql_store;
+select name, sum(quantity) as sum_products from  order_items o
+right join products p using(product_id)
+group by name
+order by sum_products asc;
+
+-- the in operator------------------------------------------------------
+-- select items that are not ordered at all
+select distinct product_id from order_items;
+
+select * from products
+where product_id not in (
+    select distinct product_id
+    from order_items
+    );
+
+-- exercise---
+-- find clients without invoices
+use sql_invoicing;
+
+select * from clients
+where client_id not in(
+    select distinct client_id from invoices
+);
+
+-- sub-queries vs join----------------------------------------------------------
+-- sub-queries can make queries complex, then it is better to use join
+-- the above example can be written as:
+select * from clients -- this a readable solution--
+left join invoices using(client_id)
+where invoice_id is null;
+
+-- exercise--
+-- find customers who have ordered Lettuce (id =3)
+use sql_store;
+select  customer_id, first_name, last_name, name from  order_items
+join products using(product_id)
+join orders using (order_id)
+join customers using (customer_id)
+where product_id = 3;
 
 
 
