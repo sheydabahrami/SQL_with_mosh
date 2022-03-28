@@ -766,7 +766,528 @@ join orders using (order_id)
 join customers using (customer_id)
 where product_id = 3;
 
+-- exercise--
+-- find customers who have ordered Lettuce (id =3) -- using sub-query
+select * from customers
+where customer_id in (
+    select o.customer_id from order_items oi
+    join orders o using(order_id)
+    where product_id = 3
+    );
+-- the ALL keyword----------------------------------------------------------------------
+-- it chooses the largest number by comparing them
+-- select invoices larger than all invoices of client 3
+use sql_invoicing;
+-- common method
+select * from invoices
+where invoice_total > (
+    select max(invoice_total)
+    from invoices
+    where client_id = 3
+);
+-- using all
+select * from invoices
+where invoice_total > all (
+    select invoice_total
+    from invoices
+    where client_id = 3
+    group by client_id
+); -- both of methods are good;
 
+-- any or some keywords (they are equivalent)---------------------------------------------------------
+-- select clients with at least two invoices
+-- common method--
+select  * from clients
+where client_id in (
+    select client_id
+    from invoices
+    group by client_id
+    having count(client_id) >= 2
+);
+-- using any
+-- =any = in
+
+select  * from clients
+where client_id = any (
+    select client_id
+    from invoices
+    group by client_id
+    having count(client_id) >= 2
+);
+
+-- correlated sub-queries----------------------------------------------------------------------------
+-- select employees whose salary is above the average in their office
+use sql_hr;
+-- below does not work because we get more than one row in where clause
+select *
+from employees
+where salary > (
+    select avg(salary)
+    from employees
+    group by office_id
+);
+-- instead we use correlated sub-queries
+select *
+from employees e
+where salary > (
+    select avg(salary)
+    from employees
+    where office_id = e.office_id
+);
+
+-- exercise--
+-- get invoices that are larger than the clients average invoice amount
+use sql_invoicing;
+select * from invoices i
+where invoice_total > (
+    select avg(invoice_total)
+    from invoices
+    where invoices.client_id = i.client_id
+);
+
+-- the exists operator ------------------------------------------------------------------------------------------------
+
+-- select clients that have invoices
+-- when we use the in operator, the sub-query in the where clause is run at first
+-- if we have a large amount of data the sub-query will return a very large list that will have a negative impact on the performance,
+-- then in situation like this we use exists operator (the sub-query does not return a result after query, it only finds matches on search condition
+-- THEN BY FACING WITH LARGE DATA SET WE SHOULD USE EXISTS CLAUSE INSTEAD OF WHERE SUB-QUERY
+-- first way
+select * from clients
+where client_id in (
+      select distinct client_id
+      from invoices
+);
+
+-- second way
+select distinct client_id, name, address, city, state,phone from  clients
+join invoices using (client_id)
+;
+
+-- third way -- using exists operator
+-- in the where clause we are not referencing a column
+-- instead we use exists, by doing so we want to see if there is a row in the invoices table that matches the criteria or not
+select * from clients c
+where  exists (
+    select client_id
+    from invoices
+    where client_id = c.client_id
+);
+-- exercise--
+-- find the products that have never been ordered;
+use sql_Store;
+-- using sub-query
+select * from products
+where product_id not in (
+    select product_id from order_items
+    );
+-- using the exists operator
+select *
+from products p
+where not exists (
+    select product_id from order_items oi
+    where product_id = p.product_id
+);
+
+-- sub-queries in the select statement ---------------------------------------------------------------------------------
+use sql_invoicing;
+select invoice_id, invoice_total,
+       (select avg(invoice_total)  from invoices)  as avg_total,
+       invoice_total- (select avg_total) as differnce
+from invoices;
+
+-- exercise--
+use sql_invoicing;
+
+select client_id,
+       name,
+       (select sum(invoice_total)
+           from invoices
+           where client_id = c.client_id) as total_sale,
+       (select avg(invoice_total) from invoices) as average,
+       (select total_sale-average ) as diference
+from clients c;
+
+-- sub-queries in "from clause"--------------------------------------------------------------------
+-- it is used for simple sub-queries, it is another better way (view). later we will learn views
+-- example of from
+select *
+from (
+    select client_id,
+           name,
+           (select sum(invoice_total)
+               from invoices
+               where client_id = c.client_id) as total_sale,
+           (select avg(invoice_total) from invoices) as average,
+           (select total_sale-average ) as diference
+    from clients c
+) as summary
+where total_sale is not null;
+
+-- numeric functions ---------------------------------------------------------------------
+select round(5.73); -- result: 6
+-- determining precision for number:
+select round(5.75, 1);
+select truncate(5.7345, 2);
+select  ceiling(5.2);
+select floor(5.2);
+select abs(5.2);
+select rand(); -- random values between zero and one
+
+-- string functions -------------------------------------------------------------------
+select length('sky');
+select upper('sky');
+select lower('Sky');
+select ltrim('   Sky'); -- left trim
+select rtrim('sky    '); -- right trim
+select trim('  sky    '); -- trim
+select left('kindergarten', 4);  -- getting 4 characters from the left
+select right('kindergarten', 4);  -- opposite of left function
+select substring('kindergarten',3,5 ); -- getting any character from the string, first argument is the start position and second one is the length
+select locate('n', 'kindergarten'); -- find the position of a character
+select locate('q', 'kindergarten');
+select locate('garten', 'kindergarten');
+select replace('kindergarten', 't','d');
+select concat('first', 'last');
+use sql_store;
+select *, concat(first_name, ' ', last_name) as full_name
+from  customers;
+
+-- date functions--------------------------------------------------------------------------
+select now(), curdate(), curtime();
+select year(now());
+select month(now());
+select hour(now());
+select minute(now());
+select second(now());
+select dayname(now());
+select monthname(now());
+-- if we aim to port our code to other database management system, it is better to use extract
+-- because it is a part of standard sql language
+select extract( month from now());
+select extract(day from now());
+select extract(second from now());
+
+-- exercise--
+-- modify the code bellow to reliably return orders placed after this year
+select *
+from orders
+where order_date >= '2019-01-01';
+
+select *
+from orders
+where year(order_date) = year(now()); -- there is no output because the 4 years passed from recording this video :)
+
+-- formatting dates and times  -----------------------------------------------------------------------------------
+
+select date_format(now(), '%Y %M');
+select time_format(now(), '%H:%p');
+
+-- calculating date and times---------------------------------------------------------------------------------------
+
+select date_add(now(), interval 1 day);
+select date_add(now(), interval 1 year);
+-- we wanna go back in time--
+select date_add(now(), interval -1 year);
+select date_sub(now(), interval 2 year);
+select datediff('2022-04-5', '2022-04-1') as differnce; -- this function only returns differences between days not the hours or minutes even
+-- included time
+select datediff('2022-04-5','2022-04-1 12:58') as diff;
+select datediff('2022-04-5 03:03','2022-04-1 12:58') as diff;
+ -- calculate differences between two times
+select timediff('2022-04-5 03:03','2022-04-1 12:58');
+select time_to_sec('03:00'); -- calculate time in seconds from the midnight
+select time_to_sec('03:00') - time_to_sec('03:02') as diff;
+
+-- ifnull and coalesce functions---------------------------------------------------------------------------------------
+-- we want to replace null values in shipper_id column with a string
+use sql_store;
+select shipper_id, ifnull(shipper_id, 'Not assigned') as shipper
+from orders;
+
+-- if the shipper id is null we wanna return values in comments column and if comments is also null we wanna return not assigned
+select shipper_id, coalesce(shipper_id, comments, 'Not assigned') as shipper
+from orders;
+
+-- exercise--
+select concat(first_name, ' ', last_name) as customer, ifnull(phone, 'Unknown') as phone
+from customers;
+
+-- the if function --------------------------------------------------------------------------------------------
+select order_id,
+       order_date,
+       if(year(order_date) = year(now()), 'active', 'archived') as status -- if it is true return first statement, if not return the second one
+from orders;
+
+-- exercise--
+select product_id,
+       name,
+       count(name) as orders,
+       if(count(name) > 1, 'Many times', 'once') as ferquency
+from order_items
+join products using(product_id)
+group by name;
+
+-- case clause---------------------------------------------------------------------------------------------------------
+-- it is for the times that we have more than 2 condition, on the other hand we have multiple test expressions
+select
+       order_id,
+       case
+           when year(order_date) = year(now()) then 'active'
+           when year(order_date) = year(now()) - 1 then 'last year'
+           when year(order_date) < year(now()) -1  then 'archived'
+           else 'future'
+       end as category
+    from orders;
+
+-- exercise--
+-- return customer names in the first column, their points in the second column and the category as gold, silver, bronze in the last column
+select concat(first_name, ' ', last_name) as name,
+       case
+           when points > 3000 then 'Gold'
+           when  points >= 2000 then 'Silver'
+           else 'Bronze'
+
+       end as category
+from customers
+order by category;
+
+-- creating views----------------------------------------------------------------------------------------------------
+-- views are virtual tables
+use sql_invoicing;
+create  view sale_by_client as
+select client_id,
+       name,
+       sum(invoice_total) as total
+from clients c
+join invoices using(client_id)
+group by  client_id, name;
+-- we can select the view:
+select * from sql_invoicing.sale_by_client;
+-- we can treat it as a table:
+select * from sale_by_client
+order by total desc;
+
+-- exercise--
+-- create a view to see the balance
+-- for each client
+-- client balance, client_id, name
+-- balance = invoice_total- payment_total
+create view  client_balance as
+select client_id,
+       name,
+       sum(invoice_total - payment_total) as balance
+from clients
+join invoices using(client_id)
+group by client_id;
+
+-- altering or dropping views------------------------------------------------------------------------------------
+drop view sale_by_client;
+--
+create or replace view sale_by_client as
+select client_id,
+       name,
+       sum(invoice_total) as total
+from clients c
+join invoices using(client_id)
+group by  client_id, name;
+-- editing views
+-- it is different than workbench
+-- right click on virtual table in view
+-- go to ddl and change the query
+
+-- updatable view-------------------------------------------------------------------------
+-- if we don't have these stuffs in our views, we can update them
+-- distinct
+-- aggregate functions min, max, sum, count and avg
+-- group by/ having
+-- union
+-- we can update our view
+create or replace view invoices_with_balance as
+    select
+           invoice_id,
+           number,
+           client_id,
+           invoice_total,
+           payment_total,
+           invoice_total - payment_total as balance,
+           invoice_date,
+           due_date,
+           payment_date
+from invoices
+where (invoice_total - payment_total) > 0;
+-- we can modify it
+delete from invoices_with_balance
+where invoice_id = 1;
+
+update invoices_with_balance
+set due_date = adddate(due_date, interval 2 day )
+where invoice_id = 2;
+
+-- with check option -------------------------------------------------------------
+-- sometimes we do some changes in our views that cause deleted columns
+-- for example in where clause of above view, we have set "where" condition > 0
+-- then when we put invoice_total = payment total
+-- the balance become zero, therefore where condition cannot accept it
+-- the balance disappear
+-- to prevent from this we use "with check option". At this time when we are faced with a value in the start of the deletion
+-- we get an error, the "with check option" do this.
+update invoices_with_balance
+set invoice_total = payment_total
+where invoice_id = 2;
+
+-- for preventing we write
+create or replace view invoices_with_balance as
+    select
+           invoice_id,
+           number,
+           client_id,
+           invoice_total,
+           payment_total,
+           invoice_total - payment_total as balance,
+           invoice_date,
+           due_date,
+           payment_date
+from invoices
+where (invoice_total - payment_total) > 0
+with check option;
+
+-- then
+update invoices_with_balance
+set invoice_total = payment_total
+where invoice_id = 3;
+
+-- creating a store procedure-----------------------------------------------------------------------------------
+
+create procedure get_clients()
+begin
+    select * from clients;
+end;
+-- for calling it
+call get_clients();
+
+-- exercise----
+-- create a stored procedure called
+-- get_invoices_with_balance
+-- to return all the invoices with a balance > 0
+create procedure get_invoices_with_balance()
+begin
+select
+           invoice_id,
+           number,
+           client_id,
+           invoice_total,
+           payment_total,
+           invoice_total - payment_total as balance,
+           invoice_date,
+           due_date,
+           payment_date
+from invoices
+where (invoice_total - payment_total) > 0;
+end;
+
+call get_invoices_with_balance();
+
+-- we can do this with view
+create procedure get_invoices_with_balance_view()
+begin
+select * from invoices_with_balance
+where balance > 0;
+end;
+
+call  get_invoices_with_balance_view();
+
+-- dropping stored procedures---------------------------------------------------
+-- it is better to write
+drop procedure if exists get_invoices_with_balance_view;
+
+-- parameters ---------------------------------------------------------------------------------
+create procedure get_clients_with_state(
+    p_state char(2)
+)
+begin
+    select * from clients
+        where state = p_state;
+end;
+
+call get_clients_with_state('CA');
+
+-- exercise
+-- write a stored procedure to return invoices
+-- for a given client
+-- get_invoices_by_client
+create procedure get_invoices_by_client(
+p_client_id int
+)
+begin
+select *
+from invoices
+    where client_id = p_client_id;
+end;
+
+call get_invoices_by_client(5);
+
+-- parameters with default value--------------------------------------------------------------------------
+-- assign a default value to a parameter
+-- we want to return all clients if the input parameter is null
+create procedure get_clients_with_state(
+p_state char(2)
+)
+begin
+    if p_state is null then
+        set p_state = 'CA';
+        end if;
+    select * from clients
+        where state = p_state;
+end;
+
+call get_clients_with_state(null);
+
+-- we want to return all clients instead of clients in California
+-- this approach is a little bit verbose and not professional;
+
+create procedure get_clients_with_state(
+p_state char(2)
+)
+begin
+    if p_state is null then
+        select * from clients;
+        else
+        select * from clients
+        where state = p_state;
+        end if;
+end;
+
+call get_clients_with_state('CA');
+
+-- writing the above function more professionally
+create procedure get_clients_with_state(
+p_state char(2)
+)
+begin
+        select * from clients
+        where state = ifnull(p_state, state); -- if p_sate is not true return second condition
+end;
+
+call get_clients_with_state(null);
+
+-- exercise
+-- write a stored procedure called get payments with two parameters
+-- client_id ==> int
+-- payment_method id ==>tinyint
+
+create procedure  get_payments(
+p_client_id int,
+p_payment_method tinyint
+)
+begin
+     select *
+     from payments
+     where client_id = ifnull(p_client_id, client_id) and
+           payment_method = ifnull(p_payment_method, payment_method);
+end;
+
+call get_payments(1,1);
 
 
 
