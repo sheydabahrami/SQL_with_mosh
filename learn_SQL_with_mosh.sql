@@ -1289,6 +1289,133 @@ end;
 
 call get_payments(1,1);
 
+-- parameter validation ---------------------------------------------------------------------------------
+-- update table and using parameter validation to avoid having bad data
+
+-- update table in stored procedure--
+create procedure make_payment(
+p_invoice_id int,
+payment_amount decimal (9,2),
+p_payment_date date
+)
+begin
+    update invoices
+        set
+            payment_total = payment_amount,
+            payment_date = p_payment_date
+    where invoice_id = p_invoice_id;
+end;
+
+call make_payment(2,100,'2019-01-01');
+
+-- second: parameter validation
+-- if we pass -200 to total amount, this is a bad input, then we wanna write a query to inform us about it
+
+create procedure make_payment(
+p_invoice_id int,
+payment_amount decimal (9,2),
+p_payment_date date
+)
+begin
+    if payment_amount <= 0 then
+    signal sqlstate '22003'
+        set message_text = 'invalid payment amount'; -- this line is optional
+    end if;
+    update invoices
+        set
+            payment_total = payment_amount,
+            payment_date = p_payment_date
+    where invoice_id = p_invoice_id;
+end;
+-- invalid amount for payment
+call make_payment(2, -100, '2019-01-01');
+
+-- output parameters (user variables) -------------------------------------------------------------------------------------------------
+-- normal procedure
+create procedure get_unpaid_invoices_for_client
+( p_client_id int
+)
+begin
+    select count(*), sum(invoice_total)
+        from invoices
+            where client_id = p_client_id and payment_total = 0;
+end;
+
+call get_unpaid_invoices_for_client(3);
+
+-- change to output parameters
+drop procedure get_unpaid_invoices_for_client_out;
+create procedure get_unpaid_invoices_for_client_out
+( p_client_id int,
+out invoices_count int,
+out invoices_total decimal(9,2)
+)
+begin
+    select count(*), sum(invoice_total)
+    into invoices_count, invoices_total
+        from invoices
+            where client_id = p_client_id and payment_total = 0;
+end;
+set @invoices_count = 0;
+set @invoices_total = 0;
+
+call get_unpaid_invoices_for_client_out(3,@invoices_count,@invoices_total);
+select @invoices_count;
+select @invoices_total;
+
+-- variables ----------------------------------------------------------------------------------------
+-- session or user variables that are output parameters that we can access them by @
+-- we can access them during client session
+-- local variables:
+-- these variables don't stay in memory in the entire user session
+-- as soon as the stored procedure end up execution this variables free up
+
+-- create stored procedure for calculating risk factor
+-- risk factor = invoices_total / invoices_count * 5
+drop procedure get_risk_factor;
+create procedure get_risk_factor()
+begin
+    declare risk_factor decimal(9,2) default 0;
+    declare invoices_total decimal(9,2);
+    declare invoice_count int;
+    select count(*), sum(invoice_total)
+    into invoice_count, invoices_total
+    from invoices;
+    set risk_factor = invoices_total / invoice_count * 5;
+    select risk_factor;
+end;
+
+call get_risk_factor();
+
+-- functions ----------------------------------------------------------------------------------------------------
+-- functions are similar to stored procedures but they cannot return results sets with different rows and columns
+-- every mysql functions must have at least one attribute:
+-- deterministic -- if we give the same set of values it should always return the same set of values
+-- reads sql data
+-- modifies sql data
+
+create function get_risk_factor_client(
+client_id int
+)
+returns integer
+reads sql data
+begin
+    declare risk_factor decimal(9,2) default 0;
+    declare invoices_total decimal(9,2);
+    declare invoice_count int;
+    select count(*), sum(invoice_total)
+    into invoice_count, invoices_total
+    from invoices i
+    where i.client_id = client_id;
+    set risk_factor = invoices_total / invoice_count * 5;
+    return ifnull(risk_factor,0);
+end;
+
+-- we can call functions as a build in functions in select clause
+select client_id,
+       name,
+       get_risk_factor_client(client_id) as risk_factor
+from clients;
 
 
 
