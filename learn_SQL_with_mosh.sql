@@ -1417,6 +1417,110 @@ select client_id,
        get_risk_factor_client(client_id) as risk_factor
 from clients;
 
+-- triggers---------------------------------------------------------------------------------------------------
+
+create trigger payments_after_insert
+    after insert on payments -- we can have before too // instead of insert we can have update or delete
+    for each row
+    begin
+        update invoices
+        set payment_total = payment_total + new.amount
+        where invoice_id = new.invoice_id;
+    end;
+insert into payments
+values (default, 5, 3, '2019-01-01',10,1);
+
+-- exercise --
+-- create a trigger that gets fired when we delete a payment
+create trigger reduce_invoices_after_payment
+    after insert on payments
+    for each row
+begin
+    update invoices
+    set invoice_total = invoice_total - new.amount
+    where invoice_id = new.invoice_id;
+end;
+
+insert payments
+values (default, 3, 7, '2019-03-02',10,1); -- this was my solution that reduces invoices total but we wanted to delete total payment
+
+-- correct solution
+create trigger payments_after_delete
+    after delete on payments
+    for each row
+begin
+    update invoices
+    set payment_total = payment_total - old.amount
+    where invoice_id = old.invoice_id;
+end;
+
+delete from payments
+where payment_id = 12;
+
+
+delete from payments
+where payment_id = 9;
+
+-- viewing triggers -----------------------------------------------------------------------
+show triggers
+
+-- dropping triggers ------------------------------------------------------------------------
+-- drop trigger if exists "name of trigger"
+-- todo audit triggers
+
+-- mysql data types
+-- string
+-- numeric
+-- date and time
+-- blob
+-- spatial
+-- ---------------------------------------------------------------------strings -----------------------------------------------------
+-- char(x)  fixed length (abbreviation: state etc)
+-- varchar(x): max 65535 characters (~ 64k) (username, email,password) we can also use for zip code and phone numbers
+    -- because they are not used in mathematical operations
+-- mediumtext max: 16MB
+-- longtext max: 4GB
+-- tinytext max:255 byte
+-- text max:64KB
+-- ------------------------------------------------------------ numeric--------------------------------------------------------------
+-- integers ------------------------------------------------------
+-- tinyint 1b [-128, 128]
+-- unsigned tinyint [0,255]
+-- smallint 2b [-32K, 32K]
+-- mediumint 3b [-2B, 2B]
+-- int 4b [-2B, 2B]
+-- bigint 8b [-9Z, 9Z]
+-- fixed points and floating points type ---------------------------
+-- fixed:
+-- decimal(p, s)  commonly used for monetary values
+-- dec
+-- numeric
+-- fixed
+-- floating points: if we have scientific calculations that precision is not important
+-- float 2b
+-- double 8b
+
+-- boolean types ----------------------------------------------------
+-- bool or boolean 0 for false and 1 for true
+
+-- enum and set types ----------------------------------------------
+-- these two types are not recommended
+-- enum('small', 'medium', 'large')
+-- set(..)
+-- ------------------------------- --------------- date and times ---------------------------------------------------------------
+-- we have
+-- date
+-- time
+-- datetime 8b
+-- timestamp 4b
+-- year
+-- ---------------------------------------------------------blob types -------------------------------------------------------
+-- we use them for saving binary data such as image, video, pdfs and ..
+-- tinyblob 255b
+-- blob 65KB
+-- mediumblob 16MB
+-- longblob 4GB
+ -- TODO JSON TYPES
 
 
 
