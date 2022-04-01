@@ -1522,7 +1522,55 @@ show triggers
 -- longblob 4GB
  -- TODO JSON TYPES
 
+-- DATA MODELING
+-- CONCEPTUAL MODEL--> LOGICAL MODEL --> PHYSICAL MODEL
+-- PHYSICAL MODEL
 
+-- create and dropping databases without using visualization tools -------------------------------------------------------
+drop database if exists sql_store_temp;
+create database if not exists sql_store_temp;
+use sql_store_temp;
+drop table if exists customers;
+create table customers
+(
+    customer_id int primary key auto_increment,
+    first_name  varchar(50) not null,
+    points      int not null default 0,
+    email       varchar(255) not null unique
+);
+
+-- alter tables------------------------------------------------------------------------------------------------------
+
+alter table customers
+    add last_name varchar(50) not null after first_name,
+    add city varchar(50) not null,
+    modify column first_name varchar(55) default '',
+    drop points
+;
+
+-- creating relations --------------------------------------------------------------------------------
+
+use sql_store2;
+create table if not exists orders
+(  order_id int primary key,
+   customer_id int not null,
+   foreign key fk_orders_customers (customer_id)
+   references customers (customer_id)
+   on update cascade
+   on delete no action
+);
+-- if we want to delete customers we will get an error because orders table are related to customers table
+
+-- delete relation between tables ---------------------------------------------------------------------
+alter table orders
+    add primary key (order_id),
+    drop primary key,
+    drop foreign key orders_ibfk_1,
+    add foreign key fk_orders_customers (customer_id)
+    references customers (customer_id)
+   on update cascade
+   on delete no action
+;
 
 
 
